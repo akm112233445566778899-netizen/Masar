@@ -1,0 +1,71 @@
+name: مسار - تحديث أوامر الصرف
+
+on:
+  schedule:
+    # كل ساعة من 7 الصبح إلى 9 الليل بتوقيت الرياض، من الأحد إلى الخميس
+    - cron: '7 4-18 * * 0-4'
+  workflow_dispatch:
+    inputs:
+      debug:
+        description: 'وضع الفحص (يحفظ هيكل صفحات فنار بدون بيانات)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  issues: write
+
+concurrency:
+  group: masar
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: تثبيت الأدوات
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: قراءة أوامر الصرف من فنار
+        run: node scraper/scrape.js
+        env:
+          FANAR_USER: ${{ secrets.FANAR_USER }}
+          FANAR_PASS: ${{ secrets.FANAR_PASS }}
+          MASAR_SALT: ${{ secrets.MASAR_SALT }}
+          GITHUB_TOKEN: ${{ github.token }}
+          MASAR_DEBUG: ${{ inputs.debug && '1' || '' }}
+
+      - name: حفظ ملفات الفحص
+        if: always() && inputs.debug
+        uses: actions/upload-artifact@v4
+        with:
+          name: masar-debug
+          path: debug/
+          retention-days: 3
+          if-no-files-found: ignore
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: update
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -75,16 +75,12 @@
   <form id="f" autocomplete="off">
     <div class="field">
       <label for="company">اسم الشركة</label>
-      <input id="company" required placeholder="كما هو مسجّل في الفاتورة">
-    </div>
-    <div class="field">
-      <label for="invoice">رقم الفاتورة</label>
-      <input id="invoice" required inputmode="text" dir="ltr" style="text-align:right">
+      <input id="company" required placeholder="مثال: شركة رصانة المرافق">
     </div>
     <div class="field">
       <label for="amount">مبلغ الفاتورة</label>
       <input id="amount" required inputmode="decimal" dir="ltr" style="text-align:right" placeholder="مثال: 15000">
-      <div class="hint">المبلغ الإجمالي بالريال كما في الفاتورة</div>
+      <div class="hint">مبلغ الفاتورة بالريال كما هو بالضبط، مع الهللات إن وُجدت</div>
     </div>
     <button id="go" type="submit">استعلام</button>
   </form>
@@ -93,7 +89,7 @@
 
   <footer>
     <div id="updated"></div>
-    <div>لا تظهر أي معلومة إلا عند تطابق الخانات الثلاث.</div>
+    <div>لا تظهر أي معلومة إلا عند تطابق اسم الشركة والمبلغ.</div>
   </footer>
 </main>
 
@@ -123,10 +119,10 @@
     try {
       const data = await dataPromise;
       if (!data?.salt || !data.records) { show('<p class="msg">الخدمة قيد التجهيز، حاول لاحقاً.</p>'); return; }
-      const d = await deriveRecord(data.salt, $('company').value, $('invoice').value, $('amount').value, data.iterations);
+      const d = await deriveRecord(data.salt, $('company').value, $('amount').value, data.iterations);
       const boxes = d && data.records[d.id];
       if (!boxes) {
-        show('<p class="msg">ما لقينا أمر صرف بهذي البيانات.<br>تأكد من كتابة اسم الشركة ورقم الفاتورة والمبلغ كما هي في الفاتورة بالضبط.</p>');
+        show('<p class="msg">ما لقينا أمر صرف بهذي البيانات.<br>تأكد من كتابة اسم الشركة والمبلغ كما هي في الفاتورة بالضبط.</p>');
         return;
       }
       const entries = await Promise.all(boxes.map((b) => decryptJSON(d.key, b)));
@@ -134,8 +130,10 @@
         <div class="entry">
           <span class="status ${tone(x.status)}">${esc(x.status || 'غير محددة')}</span>
           <dl>
+            ${x.description ? `<dt>الأعمال</dt><dd>${esc(x.description)}</dd>` : ''}
+            ${x.department ? `<dt>الجهة</dt><dd>${esc(x.department)}</dd>` : ''}
             ${x.orderNo ? `<dt>رقم أمر الصرف</dt><dd>${esc(x.orderNo)}</dd>` : ''}
-            ${x.date ? `<dt>التاريخ</dt><dd>${esc(x.date)}</dd>` : ''}
+            ${x.updated ? `<dt>آخر تحديث</dt><dd>${esc(x.updated)}</dd>` : ''}
           </dl>
         </div>`).join(''));
     } catch {

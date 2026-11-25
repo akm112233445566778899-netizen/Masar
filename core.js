@@ -68,13 +68,12 @@ function fromB64(str) {
   return Uint8Array.from(atob(str), (c) => c.charCodeAt(0));
 }
 
-// من الخانات الثلاث نشتق: معرّف للبحث + مفتاح تشفير. بدون الثلاث صح ما ينفتح شيء.
-export async function deriveRecord(salt, company, invoice, amount, iterations = KDF_ITERATIONS) {
+// من اسم الشركة + المبلغ نشتق: معرّف للبحث + مفتاح تشفير. بدونهم صح ما ينفتح شيء.
+export async function deriveRecord(salt, company, amount, iterations = KDF_ITERATIONS) {
   const c = normCompany(company);
-  const i = normInvoice(invoice);
   const a = normAmount(amount);
-  if (!c || !i || !a) return null;
-  const material = await crypto.subtle.importKey('raw', enc.encode(`${c}|${i}|${a}`), 'PBKDF2', false, ['deriveBits']);
+  if (!c || !a) return null;
+  const material = await crypto.subtle.importKey('raw', enc.encode(`${c}|${a}`), 'PBKDF2', false, ['deriveBits']);
   const bits = new Uint8Array(
     await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: enc.encode(salt), iterations }, material, 512),
   );

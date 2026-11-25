@@ -57,6 +57,7 @@ jobs:
           FANAR_USER: ${{ secrets.FANAR_USER }}
           FANAR_PASS: ${{ secrets.FANAR_PASS }}
           MASAR_SALT: ${{ secrets.MASAR_SALT }}
+          MASAR_ADMIN_PASS: ${{ secrets.MASAR_ADMIN_PASS }}
           GITHUB_TOKEN: ${{ github.token }}
           MASAR_DEBUG: ${{ inputs.debug && '1' || '' }}
 

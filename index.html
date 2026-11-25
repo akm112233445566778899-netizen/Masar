@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex">
+<meta name="robots" content="noindex, nofollow">
 <title>مِسَار | متابعة أوامر الصرف</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,136 +11,215 @@
 <style>
   :root {
     --bg: #f4f1ea; --card: #fffdf8; --ink: #1d2a26; --muted: #6b766f; --line: #e2ddd1;
-    --brand: #0f5c4d; --brand-ink: #fff; --ok: #1f7a4d; --ok-bg: #e5f3ea;
-    --wait: #9a6a00; --wait-bg: #fbf1d9; --bad: #a93226; --bad-bg: #f8e3e0;
+    --brand: #0f5c4d; --ok: #1f7a4d; --ok-bg: #e5f3ea; --wait: #9a6a00; --wait-bg: #fbf1d9; --bad: #a93226; --bad-bg: #f8e3e0;
   }
   * { box-sizing: border-box; }
-  body {
-    margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
-    font-family: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
-    display: grid; place-items: center; padding: 32px 16px;
-  }
-  main { width: 100%; max-width: 440px; }
-  header { text-align: center; margin-bottom: 28px; }
-  .mark {
-    width: 56px; height: 56px; margin: 0 auto 14px; border-radius: 16px; background: var(--brand);
-    display: grid; place-items: center;
-  }
-  h1 { margin: 0; font-size: 34px; letter-spacing: .5px; }
-  header p { margin: 6px 0 0; color: var(--muted); }
-  form, .result {
-    background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 24px;
-  }
-  label { display: block; font-weight: 500; margin: 0 0 6px; font-size: 15px; }
-  .field + .field { margin-top: 16px; }
-  input {
-    width: 100%; padding: 12px 14px; font: inherit; font-size: 16px; color: var(--ink);
-    background: #fff; border: 1px solid var(--line); border-radius: 12px; outline: none;
-  }
-  input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(15, 92, 77, .14); }
-  .hint { color: var(--muted); font-size: 13px; margin-top: 5px; }
-  button {
-    width: 100%; margin-top: 22px; padding: 13px; font: inherit; font-size: 17px; font-weight: 700;
-    background: var(--brand); color: var(--brand-ink); border: 0; border-radius: 12px; cursor: pointer;
-  }
-  button:disabled { opacity: .6; cursor: progress; }
-  .result { margin-top: 16px; display: none; }
-  .result.show { display: block; }
-  .status {
-    display: inline-block; padding: 6px 14px; border-radius: 999px; font-weight: 700; font-size: 17px;
-    background: var(--wait-bg); color: var(--wait);
-  }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 28px 16px 60px; }
+  header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+  .mark { width: 46px; height: 46px; border-radius: 14px; background: var(--brand); display: grid; place-items: center; flex: none; }
+  h1 { margin: 0; font-size: 28px; }
+  header p { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 18px; }
+  input, select, button { font: inherit; }
+  input, select { width: 100%; padding: 12px 14px; font-size: 16px; color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: 12px; outline: none; }
+  input:focus, select:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(15, 92, 77, .14); }
+  .btn { margin-top: 14px; width: 100%; padding: 12px; font-size: 16px; font-weight: 700; background: var(--brand); color: #fff; border: 0; border-radius: 12px; cursor: pointer; }
+  .btn:disabled { opacity: .6; }
+  .err { color: var(--bad); margin: 10px 0 0; min-height: 1.4em; }
+  #search { font-size: 18px; padding: 14px 16px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
+  .chip { padding: 7px 14px; border-radius: 999px; border: 1px solid var(--line); background: #fff; cursor: pointer; font-size: 14px; color: var(--ink); }
+  .chip.on { background: var(--brand); color: #fff; border-color: var(--brand); }
+  .controls select { width: auto; padding: 7px 12px; font-size: 14px; border-radius: 999px; }
+  .meta { display: flex; justify-content: space-between; color: var(--muted); font-size: 13px; margin: 16px 4px 8px; gap: 8px; flex-wrap: wrap; }
+  .list { display: grid; gap: 10px; }
+  .row { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; }
+  .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .company { font-weight: 700; font-size: 16px; }
+  .amount { font-weight: 700; font-size: 16px; white-space: nowrap; }
+  .status { display: inline-block; margin-top: 8px; padding: 4px 12px; border-radius: 999px; font-weight: 700; font-size: 14px; background: var(--wait-bg); color: var(--wait); }
   .status.ok { background: var(--ok-bg); color: var(--ok); }
   .status.bad { background: var(--bad-bg); color: var(--bad); }
-  dl { margin: 16px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; font-size: 15px; }
-  dt { color: var(--muted); }
-  dd { margin: 0; }
-  .msg { margin: 0; line-height: 1.7; }
-  .entry + .entry { border-top: 1px dashed var(--line); margin-top: 16px; padding-top: 16px; }
-  footer { text-align: center; color: var(--muted); font-size: 13px; margin-top: 22px; line-height: 1.8; }
+  .tag { display: inline-block; margin-inline-start: 6px; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 500; background: #eef2ef; color: var(--brand); vertical-align: middle; }
+  .details { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 10px 0 0; font-size: 14px; }
+  .details dt { color: var(--muted); }
+  .details dd { margin: 0; }
+  details.stages { margin-top: 12px; border-top: 1px dashed var(--line); padding-top: 10px; }
+  details.stages summary { cursor: pointer; color: var(--brand); font-weight: 500; font-size: 14px; }
+  .timeline { list-style: none; margin: 10px 0 0; padding: 0; }
+  .timeline li { position: relative; padding: 0 22px 12px 0; font-size: 14px; }
+  .timeline li::before { content: ""; position: absolute; right: 5px; top: 6px; bottom: -6px; width: 2px; background: var(--line); }
+  .timeline li:last-child::before { display: none; }
+  .timeline .dot { position: absolute; right: 0; top: 4px; width: 12px; height: 12px; border-radius: 50%; background: #fff; border: 2px solid var(--line); }
+  .timeline li.done .dot { background: var(--ok); border-color: var(--ok); }
+  .timeline li.bad .dot { background: var(--bad); border-color: var(--bad); }
+  .timeline b { display: block; font-weight: 500; }
+  .timeline .val { color: var(--muted); }
+  mark { background: #ffe9a8; border-radius: 3px; padding: 0 1px; }
+  .empty { text-align: center; color: var(--muted); padding: 30px 10px; }
+  .hidden { display: none; }
 </style>
 </head>
 <body>
 <main>
   <header>
     <div class="mark" aria-hidden="true">
-      <svg width="30" height="30" viewBox="0 0 30 30" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round">
+      <svg width="26" height="26" viewBox="0 0 30 30" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round">
         <path d="M5 22 C 11 22, 11 8, 17 8 S 25 15, 25 15"/><circle cx="5" cy="22" r="2.2" fill="#fff"/><circle cx="25" cy="15" r="2.2" fill="#fff"/>
       </svg>
     </div>
-    <h1>مِسَار</h1>
-    <p>تابع حالة أمر الصرف الخاص بفاتورتك</p>
+    <div>
+      <h1>مِسَار</h1>
+      <p>متابعة أوامر الصرف في فنار — ابحث بالمبلغ أو اسم المستفيد</p>
+    </div>
   </header>
 
-  <form id="f" autocomplete="off">
-    <div class="field">
-      <label for="company">اسم الشركة</label>
-      <input id="company" required placeholder="اكتب اسم الشركة كما في الفاتورة">    </div>
-    <div class="field">
-      <label for="amount">مبلغ الفاتورة</label>
-      <input id="amount" required inputmode="decimal" dir="ltr" style="text-align:right" placeholder="مثال: 15000">
-      <div class="hint">مبلغ الفاتورة بالريال كما هو بالضبط، مع الهللات إن وُجدت</div>
-    </div>
-    <button id="go" type="submit">استعلام</button>
+  <form id="lock" class="panel hidden" autocomplete="off">
+    <label for="pass" style="display:block;font-weight:500;margin-bottom:6px">كلمة المرور</label>
+    <input id="pass" type="password" required>
+    <button class="btn" id="unlock" type="submit">دخول</button>
+    <p class="err" id="lockErr"></p>
   </form>
 
-  <section class="result" id="result" aria-live="polite"></section>
+  <p id="loading" class="empty">جاري تحميل البيانات…</p>
 
-  <footer>
-    <div id="updated"></div>
-    <div>لا تظهر أي معلومة إلا عند تطابق اسم الشركة والمبلغ.</div>
-  </footer>
+  <section id="app" class="hidden">
+    <div class="panel">
+      <input id="search" type="search" placeholder="اكتب المبلغ كامل أو اسم المستفيد…" autocomplete="off">
+      <div class="controls">
+        <button class="chip on" data-scope="all" type="button">كل الأوامر</button>
+        <button class="chip" data-scope="m" type="button">الصيانة فقط</button>
+        <select id="status" aria-label="الحالة"><option value="">كل الحالات</option></select>
+      </div>
+    </div>
+    <div class="meta"><span id="count"></span><span id="updated"></span></div>
+    <div class="list" id="list"></div>
+  </section>
 </main>
 
 <script type="module">
-  import { deriveRecord, decryptJSON } from './core.js';
+  import { normCompany, normAmount, toLatinDigits, decryptJSON } from './core.js';
 
   const $ = (id) => document.getElementById(id);
   const fmt = new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Riyadh' });
-  let dataPromise = fetch('data.json', { cache: 'no-store' }).then((r) => r.json()).catch(() => null);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const tone = (s) => (/رفض|مرفوض|ملغ|إلغاء|الغاء|معاد|مُعاد|إعادة|مرتجع/.test(s) ? 'bad' : /تم الصرف|صرف|مدفوع|تم الدفع|مكتمل|منفذ|تم التحويل/.test(s) ? 'ok' : '');
+  const stageTone = (v) => (/رفض|مرفوض|إعادة|معاد|مُعاد/.test(v) ? 'bad' : v && v !== '—' && v !== '-' ? 'done' : '');
+  const MAX = 200;
 
-  dataPromise.then((d) => {
-    if (d?.updatedAt) $('updated').textContent = `آخر تحديث للبيانات: ${fmt.format(new Date(d.updatedAt))}`;
+  let rows = [];
+  let scope = 'all';
+  let data = null;
+
+  function start(list) {
+    rows = list.map((r) => ({ ...r, _c: normCompany(r.company), _a: normAmount(r.amount), _no: toLatinDigits(r.no || '') }));
+    $('updated').textContent = `آخر تحديث: ${fmt.format(new Date(data.updatedAt))}`;
+    const statuses = [...new Set(rows.map((r) => r.status).filter(Boolean))].sort();
+    $('status').insertAdjacentHTML('beforeend', statuses.map((s) => `<option>${esc(s)}</option>`).join(''));
+    $('lock').classList.add('hidden');
+    $('app').classList.remove('hidden');
+    render();
+    $('search').focus();
+  }
+
+  fetch('data.json', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null).then((d) => {
+    $('loading').classList.add('hidden');
+    data = d;
+    if (!d || d.v !== 3) { $('loading').textContent = 'البيانات قيد التجهيز، ارجع بعد شوي.'; $('loading').classList.remove('hidden'); return; }
+    if (d.enc) { $('lock').classList.remove('hidden'); $('pass').focus(); } else start(d.rows);
   });
 
-  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  function tone(status) {
-    if (/رفض|مرفوض|ملغ|إلغاء|الغاء|معاد|إعادة|مرتجع/.test(status)) return 'bad';
-    if (/تم الصرف|صرف|مدفوع|تم الدفع|مكتمل|منفذ|تم التحويل/.test(status)) return 'ok';
-    return '';
-  }
-  function show(html) { $('result').innerHTML = html; $('result').classList.add('show'); }
-
-  $('f').addEventListener('submit', async (e) => {
+  $('lock').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const btn = $('go');
-    btn.disabled = true; btn.textContent = 'جاري التحقق…';
+    const btn = $('unlock');
+    btn.disabled = true; btn.textContent = 'جاري الفتح…'; $('lockErr').textContent = '';
     try {
-      const data = await dataPromise;
-      if (!data?.salt || !data.records) { show('<p class="msg">الخدمة قيد التجهيز، حاول لاحقاً.</p>'); return; }
-      const d = await deriveRecord(data.salt, $('company').value, $('amount').value, data.iterations);
-      const boxes = d && data.records[d.id];
-      if (!boxes) {
-        show('<p class="msg">ما لقينا أمر صرف بهذي البيانات.<br>تأكد من كتابة اسم الشركة والمبلغ كما هي في الفاتورة بالضبط.</p>');
-        return;
-      }
-      const entries = await Promise.all(boxes.map((b) => decryptJSON(d.key, b)));
-      show(entries.map((x) => `
-        <div class="entry">
-          <span class="status ${tone(x.status)}">${esc(x.status || 'غير محددة')}</span>
-          <dl>
-            ${x.description ? `<dt>الأعمال</dt><dd>${esc(x.description)}</dd>` : ''}
-            ${x.department ? `<dt>الجهة</dt><dd>${esc(x.department)}</dd>` : ''}
-            ${x.orderNo ? `<dt>رقم أمر الصرف</dt><dd>${esc(x.orderNo)}</dd>` : ''}
-            ${x.updated ? `<dt>آخر تحديث</dt><dd>${esc(x.updated)}</dd>` : ''}
-          </dl>
-        </div>`).join(''));
+      const material = await crypto.subtle.importKey('raw', new TextEncoder().encode($('pass').value), 'PBKDF2', false, ['deriveKey']);
+      const salt = Uint8Array.from(atob(data.salt), (c) => c.charCodeAt(0));
+      const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: data.iterations },
+        material, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+      const list = await decryptJSON(key, data);
+      $('pass').value = '';
+      start(list);
     } catch {
-      show('<p class="msg">صار خطأ أثناء الاستعلام، حاول مرة ثانية.</p>');
+      $('lockErr').textContent = 'كلمة المرور غير صحيحة.';
     } finally {
-      btn.disabled = false; btn.textContent = 'استعلام';
+      btn.disabled = false; btn.textContent = 'دخول';
     }
   });
+
+  document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', () => {
+    scope = c.dataset.scope;
+    document.querySelectorAll('.chip').forEach((x) => x.classList.toggle('on', x === c));
+    render();
+  }));
+  $('search').addEventListener('input', render);
+  $('status').addEventListener('change', render);
+
+  // ما يظهر شي إلا بعد البحث: المبلغ لازم يطابق بالضبط، والاسم 3 حروف على الأقل
+  const MIN_NAME = 3;
+  function search() {
+    const raw = $('search').value.trim();
+    if (!raw) return null;
+    const st = $('status').value;
+    const list = rows.filter((r) => (scope === 'all' || r.m) && (!st || r.status === st));
+    const latin = toLatinDigits(raw);
+    if (/^[\d\s.,٫٬]+(ريال|ر\.?س|sar)?$/i.test(latin.trim())) {
+      const q = normAmount(latin);
+      const digits = latin.replace(/\D/g, '');
+      return list.filter((r) => (q && r._a === q) || (digits.length >= 6 && r._no === digits));
+    }
+    const q = normCompany(raw);
+    if (q.replace(/\s/g, '').length < MIN_NAME) return 'short';
+    return list.filter((r) => r._c.includes(q));
+  }
+
+  function highlight(text, needle) {
+    const t = String(text ?? '');
+    const i = needle ? t.indexOf(needle) : -1;
+    return i < 0 ? esc(t) : esc(t.slice(0, i)) + '<mark>' + esc(needle) + '</mark>' + esc(t.slice(i + needle.length));
+  }
+
+  function stagesHtml(r, open) {
+    if (!r.stages?.length) return '';
+    const items = r.stages.map((s) => `
+      <li class="${stageTone(s.value)}"><span class="dot"></span><b>${esc(s.label)}</b><span class="val">${esc(s.value || '—')}</span></li>`).join('');
+    return `<details class="stages"${open ? ' open' : ''}><summary>المراحل اللي مر عليها (${r.stages.length})</summary><ol class="timeline">${items}</ol></details>`;
+  }
+
+  function render() {
+    const found = search();
+    const needle = $('search').value.trim();
+    if (found === null || found === 'short') {
+      $('count').textContent = '';
+      $('list').innerHTML = `<div class="empty">${found === 'short'
+        ? 'اكتب 3 حروف على الأقل من اسم المستفيد.'
+        : 'اكتب المبلغ كامل أو اسم المستفيد عشان تظهر أوامر الصرف.'}</div>`;
+      return;
+    }
+    $('count').textContent = `${found.length.toLocaleString('en')} أمر صرف${found.length > MAX ? ` — يظهر أول ${MAX}` : ''}`;
+    if (!found.length) { $('list').innerHTML = '<div class="empty">ما فيه أوامر صرف مطابقة.</div>'; return; }
+    const openStages = found.length <= 3;
+    $('list').innerHTML = found.slice(0, MAX).map((r) => `
+      <article class="row">
+        <div class="top">
+          <div>
+            <div class="company">${highlight(r.company || 'بدون اسم مستفيد', needle)}${r.m ? '<span class="tag">صيانة</span>' : ''}</div>
+            <span class="status ${tone(r.status || '')}">${esc(r.status || 'غير محددة')}</span>
+          </div>
+          <div class="amount">${esc(r.amount || '')}</div>
+        </div>
+        <dl class="details">
+          ${r.description ? `<dt>بيانات الصرف</dt><dd>${esc(r.description)}</dd>` : ''}
+          ${r.department ? `<dt>القسم</dt><dd>${esc(r.department)}</dd>` : ''}
+          ${r.no ? `<dt>رقم المعاملة</dt><dd>${esc(r.no)}</dd>` : ''}
+          ${r.submitted ? `<dt>التقديم</dt><dd>${esc(r.submitted)}</dd>` : ''}
+          ${r.updated ? `<dt>آخر تحديث</dt><dd>${esc(r.updated)}</dd>` : ''}
+        </dl>
+        ${stagesHtml(r, openStages)}
+      </article>`).join('');
+  }
 </script>
 </body>
 </html>

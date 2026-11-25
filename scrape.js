@@ -6,9 +6,7 @@ import fs from 'node:fs/promises';
 import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import {
-  KDF_ITERATIONS, deriveRecord, encryptJSON, normText, toLatinDigits,
-} from '../site/core.js';
+import { encryptJSON, normText, toLatinDigits } from '../site/core.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const config = JSON.parse(await fs.readFile(process.env.MASAR_CONFIG || path.join(ROOT, 'config.json'), 'utf8'));
@@ -209,7 +207,7 @@ async function loadAllCards(page) {
 
 async function clickTab(page, label) {
   return page.evaluate((label) => {
-    const norm = (s) => (s || '').replace(/[0-9٠-٩]/g, '').replace(/\s+/g, ' ').trim();
+    const norm = (s) => (s || '').replace(/[0-9٠-٩\u064B-\u065F\u0670]/g, '').replace(/\s+/g, ' ').trim();
     const btn = [...document.querySelectorAll('button, [role=tab], a')].find((b) => norm(b.innerText) === norm(label));
     if (!btn) return { found: false };
     const m = (btn.innerText || '').match(/[0-9]+/);
@@ -283,6 +281,20 @@ async function readCards(page, deadline) {
       });
       if (best !== null) out[lab] = best;
     }
+    // مراحل الاعتماد: كل مربع فيه عنوان (اعتماد/إقفال) وتحته قيمة
+    const stages = [];
+    const seen = new Set();
+    card.querySelectorAll('*').forEach((e) => {
+      const kids = [...e.children];
+      if (kids.length !== 2 || kids[0].children.length) return;
+      const lab = (kids[0].innerText || '').trim();
+      if (!lab || lab.length > 40 || seen.has(lab) || !/اعتماد|إقفال|الإقفال|اقفال/.test(lab)) return;
+      seen.add(lab);
+      const val = (kids[1].innerText || '').split('\n').map((x) => x.trim()).filter(Boolean).join(' • ')
+        .replace(/(\s*•\s*)+/g, ' • ').replace(/^•\s*|\s*•$/g, '').trim();
+      stages.push({ label: lab, value: val });
+    });
+    out.__stages = stages;
     return out;
   };
   const args = (mode) => ({ o: O, labels: LABELS, mode });
@@ -315,6 +327,7 @@ function toRecord(d, tab) {
   const r = {};
   for (const [key, label] of Object.entries(F)) r[key] = d[label] ?? '';
   if (!r.status) r.status = tab || '';
+  r.stages = d.__stages || [];
   return r;
 }
 
@@ -363,23 +376,31 @@ async function readAllOrders(page) {
   return [...byId.values()];
 }
 
-// ---------- بناء الملف المشفّر ----------
-async function build(orders) {
-  const salt = need('MASAR_SALT');
-  const records = {};
-  let skipped = 0;
-  for (const o of orders) {
-    const d = await deriveRecord(salt, o.company, o.amount);
-    if (!d) { skipped++; continue; }
-    const payload = {
-      status: o.status, updated: o.updated, orderNo: o.orderNo, description: o.description, department: o.department,
-    };
-    (records[d.id] ||= []).push(await encryptJSON(d.key, payload));
+// ---------- بناء ملف البيانات: كل أوامر الصرف مع مراحلها ----------
+// إذا فيه سر MASAR_ADMIN_PASS: البيانات تتشفّر والصفحة تطلب كلمة مرور. وإذا ما فيه: الصفحة مفتوحة.
+const ITERATIONS = 300000;
+async function buildData(all, isMaint) {
+  const rows = all.map((o) => ({
+    no: o.orderNo, company: o.company, amount: o.amount, description: o.description, department: o.department,
+    status: o.status, updated: o.updated, submitted: o.submitted, m: isMaint(o), stages: o.stages || [],
+  }));
+  const updatedAt = new Date().toISOString();
+  let data;
+  const pass = process.env.MASAR_ADMIN_PASS;
+  if (pass) {
+    const salt = crypto.randomBytes(16);
+    const material = await globalThis.crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
+    const key = await globalThis.crypto.subtle.deriveKey(
+      { name: 'PBKDF2', hash: 'SHA-256', salt, iterations: ITERATIONS }, material, { name: 'AES-GCM', length: 256 }, false, ['encrypt'],
+    );
+    data = { v: 3, enc: true, salt: salt.toString('base64'), iterations: ITERATIONS, updatedAt, ...(await encryptJSON(key, rows)) };
+  } else {
+    data = { v: 3, enc: false, updatedAt, rows };
   }
-  const data = { v: 2, salt, iterations: KDF_ITERATIONS, updatedAt: new Date().toISOString(), records };
   await fs.mkdir(path.dirname(OUT), { recursive: true });
   await fs.writeFile(OUT, JSON.stringify(data));
-  log(`تم: ${orders.length - skipped} أمر صرف مشفّر${skipped ? `، وتُجاهل ${skipped} ناقص اسم الشركة أو المبلغ` : ''}.`);
+  const withStages = rows.filter((r) => r.stages.length).length;
+  log(`تم: ${rows.length} أمر صرف (${rows.filter((r) => r.m).length} صيانة، ${withStages} فيها مراحل الاعتماد)${pass ? '، مشفّرة بكلمة مرور' : ''}.`);
 }
 
 // ---------- حفظ جلسة الدخول (مشفّرة بكلمة المرور) عشان ما يُطلب رمز التحقق كل مرة ----------
@@ -427,20 +448,15 @@ try {
   }
   if (needLogin) await login(page);
   await saveSession(context);
-  let orders = await readAllOrders(page);
-  if (!orders.length) throw new Error('ما انقرأ أي أمر صرف — ما راح نحدّث الصفحة عشان ما تنمسح البيانات القديمة.');
+  const all = await readAllOrders(page);
+  if (!all.length) throw new Error('ما انقرأ أي أمر صرف — ما راح نحدّث الصفحة عشان ما تنمسح البيانات القديمة.');
   const only = config.onlyMaintenance;
-  if (only?.field && only.contains?.length) {
-    const wanted = only.contains.map(normText);
-    const total = orders.length;
-    orders = orders.filter((o) => {
-      const v = normText(o[only.field]);
-      return v && wanted.some((w) => v.includes(w));
-    });
-    log(`بند الصيانة: ${orders.length} من أصل ${total} أمر صرف.`);
-    if (!orders.length) throw new Error('ما لقيت أي أمر صرف فيه صيانة في «بيانات الصرف». ما راح نحدّث الصفحة.');
-  }
-  await build(orders);
+  const wanted = (only?.contains || []).map(normText);
+  const isMaint = (o) => {
+    const v = normText(o[only?.field || 'description']);
+    return !!v && wanted.some((w) => v.includes(w));
+  };
+  await buildData(all, isMaint);
 } catch (err) {
   console.error('[مسار] خطأ:', err.message);
   process.exitCode = 1;

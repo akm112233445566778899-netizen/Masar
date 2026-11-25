@@ -5,7 +5,7 @@
   "login": {
     "username": "input[type=email], input[name*=user i], input[name*=email i], input[id*=user i], input[type=text]",
     "password": "input[type=password]",
-    "submit": "button[type=submit], input[type=submit]",
+    "submit": "button[type=submit], input[type=submit], button:has-text(\"دخول\"), [role=button]:has-text(\"دخول\"), button:has-text(\"تسجيل\")",
     "loggedInSelector": ""
   },
 

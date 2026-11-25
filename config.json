@@ -1,6 +1,6 @@
 {
-  "loginUrl": "https://ضع-رابط-صفحة-دخول-فنار-هنا",
-  "ordersUrl": "https://ضع-رابط-صفحة-أوامر-الصرف-هنا",
+  "loginUrl": "https://fanar.gqb.org.sa/login",
+  "ordersUrl": "https://fanar.gqb.org.sa/finance/orders/requests",
 
   "login": {
     "username": "input[type=email], input[name*=user i], input[name*=email i], input[id*=user i], input[type=text]",

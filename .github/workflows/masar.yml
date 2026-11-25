@@ -24,7 +24,7 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -44,6 +44,13 @@ jobs:
           npm install --no-audit --no-fund
           npx playwright install --with-deps chromium
 
+      - name: استرجاع جلسة الدخول
+        uses: actions/cache/restore@v4
+        with:
+          path: .masar-session.enc
+          key: masar-session-${{ github.run_id }}
+          restore-keys: masar-session-
+
       - name: قراءة أوامر الصرف من فنار
         run: node scraper/scrape.js
         env:
@@ -52,6 +59,13 @@ jobs:
           MASAR_SALT: ${{ secrets.MASAR_SALT }}
           GITHUB_TOKEN: ${{ github.token }}
           MASAR_DEBUG: ${{ inputs.debug && '1' || '' }}
+
+      - name: حفظ جلسة الدخول
+        if: always() && hashFiles('.masar-session.enc') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: .masar-session.enc
+          key: masar-session-${{ github.run_id }}
 
       - name: حفظ ملفات الفحص
         if: always() && inputs.debug

@@ -1,20 +1,17 @@
 {
   "loginUrl": "https://fanar.gqb.org.sa/login",
   "ordersUrl": "https://fanar.gqb.org.sa/finance/orders/requests",
-
   "login": {
     "username": "input[type=email], input[name*=user i], input[name*=email i], input[id*=user i], input[type=text]",
     "password": "input[type=password]",
     "submit": "button[type=submit], input[type=submit], button:has-text(\"دخول\"), [role=button]:has-text(\"دخول\"), button:has-text(\"تسجيل\")",
     "loggedInSelector": ""
   },
-
   "otp": {
     "input": "input[autocomplete=one-time-code], input[name*=otp i], input[name*=code i], input[id*=otp i]",
     "submit": "button[type=submit], input[type=submit]",
     "waitMinutes": 8
   },
-
   "orders": {
     "tabs": [
       "المرحلة الأولى",
@@ -25,7 +22,7 @@
       "بانتظار الإقفال",
       "المسيرات",
       "المكتملة",
-      "معادة للدار",
+      "مُعادة للدار",
       "المرفوضة",
       "حالة قديمة (عند المالية)"
     ],
@@ -35,12 +32,15 @@
     "detailsMarker": "بيانات المستفيد",
     "maxMinutes": 20
   },
-
   "onlyMaintenance": {
     "field": "description",
-    "contains": ["صيانة", "الصيانة"]
+    "contains": [
+      "صيانة", "صيانه", "إصلاح", "اصلاح", "تصليح", "ترميم", "سباكة", "سباكه",
+      "كهرباء", "كهربائي", "تكييف", "مكيف", "تمديد", "تمديدات", "دهان", "نجارة",
+      "عزل", "تسريب", "مضخة", "مضخه", "مصعد", "إنارة", "انارة", "لوحة توزيع",
+      "قطع غيار", "استبدال", "تركيب"
+    ]
   },
-
   "fields": {
     "orderNo": "المعاملة",
     "amount": "المبلغ",

@@ -3,6 +3,7 @@
 
 import { chromium } from 'playwright';
 import fs from 'node:fs/promises';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -109,6 +110,17 @@ async function firstVisible(page, selector, timeout) {
   return loc;
 }
 
+// يضغط زر الإرسال: أولاً حسب الإعدادات، بعدين حسب النص المكتوب على الزر، وأخيراً Enter
+async function submitForm(page, selector, field) {
+  const byCss = page.locator(selector).filter({ visible: true }).first();
+  if (await byCss.count()) return byCss.click();
+  const byText = page.getByRole('button', { name: /دخول|تسجيل|متابعة|تحقق|تأكيد|إرسال|login|log in|sign in|submit|continue|verify/i })
+    .filter({ visible: true }).first();
+  if (await byText.count()) return byText.click();
+  log('ما لقيت زر الدخول، نضغط Enter.');
+  return field.press('Enter');
+}
+
 async function login(page) {
   log('فتح صفحة الدخول…');
   await page.goto(config.loginUrl, { waitUntil: 'domcontentloaded' });
@@ -117,8 +129,9 @@ async function login(page) {
   const loginHref = page.url();
 
   await (await firstVisible(page, config.login.username, 30_000)).fill(need('FANAR_USER'));
-  await (await firstVisible(page, config.login.password, 10_000)).fill(need('FANAR_PASS'));
-  await (await firstVisible(page, config.login.submit, 10_000)).click();
+  const pass = await firstVisible(page, config.login.password, 10_000);
+  await pass.fill(need('FANAR_PASS'));
+  await submitForm(page, config.login.submit, pass);
 
   const loggedIn = config.login.loggedInSelector
     ? page.locator(config.login.loggedInSelector).first().waitFor({ timeout: 45_000 })
@@ -137,9 +150,9 @@ async function login(page) {
     log('فنار طلب رمز تحقق…');
     await dumpStructure(page, '1c-otp');
     const code = await askForOtp();
-    await (await firstVisible(page, config.otp.input, 10_000)).fill(code);
-    const submit = page.locator(config.otp.submit).filter({ visible: true }).first();
-    if (await submit.count()) await submit.click(); else await page.keyboard.press('Enter');
+    const otpField = await firstVisible(page, config.otp.input, 10_000);
+    await otpField.fill(code);
+    await submitForm(page, config.otp.submit, otpField);
     await page.waitForLoadState('networkidle').catch(() => {});
     await sleep(3000);
   }
@@ -172,8 +185,8 @@ function watchApi(page) {
 }
 
 async function countToggles(page) {
-  return page.evaluate((o) => [...document.querySelectorAll('button, a, [role=button]')]
-    .filter((b) => { const t = b.innerText || ''; return t.includes(o.showDetailsText) || t.includes(o.hideDetailsText); }).length, O);
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return page.getByText(new RegExp(`${esc(O.showDetailsText)}|${esc(O.hideDetailsText)}`)).count();
 }
 
 async function loadAllCards(page) {
@@ -221,72 +234,71 @@ async function dumpFirstDetails(page) {
 // يفتح تفاصيل كل بطاقة ويقرأ الخانات حسب عناوينها (مو حسب تصميم الصفحة)
 async function readCards(page, deadline) {
   await dumpFirstDetails(page);
-  return page.evaluate(async ({ o, labels, deadline }) => {
-    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-    const toggles = () => [...document.querySelectorAll('button, a, [role=button]')]
-      .filter((b) => { const t = b.innerText || ''; return t.includes(o.showDetailsText) || t.includes(o.hideDetailsText); });
-    const cardOf = (btn) => {
-      let el = btn;
-      while (el.parentElement && !(el.innerText || '').includes(o.cardMarker)) el = el.parentElement;
-      return el;
-    };
-    const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    // نقرأ كل خانة من أصغر عنصر يحمل عنوانها، سواء كانت "العنوان: القيمة" أو عنوان وتحته القيمة
-    const extract = (card) => {
-      const els = [card, ...card.querySelectorAll('*')];
-      const texts = els.map((e) => (e.innerText || '').trim());
-      const out = {};
-      for (const lab of labels) {
-        const re = new RegExp(`^${esc(lab)}\\s*[:：]\\s*([^\\n]+)`);
-        let best = null;
-        const offer = (v) => {
-          v = (v || '').split('\n').map((x) => x.trim()).filter(Boolean)[0] || '';
-          if (v && (best === null || v.length < best.length)) best = v;
-        };
-        els.forEach((e, i) => {
-          const t = texts[i];
-          if (!t || t.length > 400) return;
-          if (t === lab || t === `${lab}:` || t === `${lab} :`) {
-            const sib = e.nextElementSibling && (e.nextElementSibling.innerText || '').trim();
-            if (sib) return offer(sib);
-            const p = (e.parentElement && e.parentElement.innerText || '').trim();
-            if (p.startsWith(lab)) offer(p.slice(lab.length).replace(/^[\s:：]+/, ''));
-            return;
-          }
-          const m = t.match(re);
-          if (m) offer(m[1]);
-        });
-        if (best !== null) out[lab] = best;
-      }
-      return out;
-    };
-    const results = [];
-    let failed = 0;
-    let timedOut = false;
-    const n = toggles().length;
-    for (let i = 0; i < n; i++) {
-      if (Date.now() > deadline) { timedOut = true; break; }
-      const btn = toggles()[i];
-      if (!btn) break;
-      if (!cardOf(btn).innerText.includes(o.detailsMarker)) {
-        btn.scrollIntoView({ block: 'center' });
-        btn.click();
-        for (let w = 0; w < 60; w++) {
-          const t = toggles()[i];
-          if (t && cardOf(t).innerText.includes(o.detailsMarker)) break;
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // أصغر عنصر مكتوب عليه "عرض التفاصيل" أو "إخفاء التفاصيل" — نضغطه بضغطة ماوس حقيقية
+  const toggles = page.getByText(new RegExp(`${esc(O.showDetailsText)}|${esc(O.hideDetailsText)}`));
+  const n = await toggles.count();
+  const results = [];
+  let failed = 0;
+  let timedOut = false;
+
+  const inCard = (el, { o, labels, mode }) => {
+    let card = el;
+    while (card.parentElement && !(card.innerText || '').includes(o.cardMarker)) card = card.parentElement;
+    if (mode === 'has') return (card.innerText || '').includes(o.detailsMarker);
+    const esc2 = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const els = [card, ...card.querySelectorAll('*')];
+    const texts = els.map((e) => (e.innerText || '').trim());
+    const out = {};
+    for (const lab of labels) {
+      const re = new RegExp(`^${esc2(lab)}\\s*[:：]\\s*([^\\n]+)`);
+      let best = null;
+      const offer = (v) => {
+        v = (v || '').split('\n').map((x) => x.trim()).filter(Boolean)[0] || '';
+        if (v && (best === null || v.length < best.length)) best = v;
+      };
+      els.forEach((e, i) => {
+        const t = texts[i];
+        if (!t || t.length > 400) return;
+        if (t === lab || t === `${lab}:` || t === `${lab} :`) {
+          const sib = e.nextElementSibling && (e.nextElementSibling.innerText || '').trim();
+          if (sib) return offer(sib);
+          const p = (e.parentElement && e.parentElement.innerText || '').trim();
+          if (p.startsWith(lab)) offer(p.slice(lab.length).replace(/^[\s:：]+/, ''));
+          return;
+        }
+        const m = t.match(re);
+        if (m) offer(m[1]);
+      });
+      if (best !== null) out[lab] = best;
+    }
+    return out;
+  };
+  const args = (mode) => ({ o: O, labels: LABELS, mode });
+
+  for (let i = 0; i < n; i++) {
+    if (Date.now() > deadline) { timedOut = true; break; }
+    const t = toggles.nth(i);
+    try {
+      let open = await t.evaluate(inCard, args('has'));
+      if (!open) {
+        await t.scrollIntoViewIfNeeded({ timeout: 5000 });
+        await t.click({ timeout: 5000 });
+        for (let w = 0; w < 40 && !open; w++) {
           await sleep(150);
+          open = await t.evaluate(inCard, args('has'));
         }
       }
-      const t = toggles()[i];
-      if (!t) break;
-      const card = cardOf(t);
-      if (!card.innerText.includes(o.detailsMarker)) failed++;
-      results.push(extract(card));
-      if ((t.innerText || '').includes(o.hideDetailsText)) t.click();
-      await sleep(40);
+      if (!open) failed++;
+      results.push(await t.evaluate(inCard, args('read')));
+      if (open && (await t.innerText()).includes(O.hideDetailsText)) await t.click({ timeout: 3000 }).catch(() => {});
+    } catch {
+      failed++;
     }
-    return { results, failed, timedOut, total: n };
-  }, { o: O, labels: LABELS, deadline });
+    // إذا أول 5 بطاقات كلها ما انفتحت، نوقف بدل ما نضيّع الوقت
+    if (i === 4 && failed === 5) throw new Error('ما قدرت أفتح «عرض التفاصيل» في أول 5 أوامر. شغّل وضع الفحص وأرسل ملف masar-debug.');
+  }
+  return { results, failed, timedOut, total: n };
 }
 
 function toRecord(d, tab) {
@@ -360,12 +372,51 @@ async function build(orders) {
   log(`تم: ${orders.length - skipped} أمر صرف مشفّر${skipped ? `، وتُجاهل ${skipped} ناقص اسم الشركة أو المبلغ` : ''}.`);
 }
 
+// ---------- حفظ جلسة الدخول (مشفّرة بكلمة المرور) عشان ما يُطلب رمز التحقق كل مرة ----------
+const SESSION_FILE = path.join(ROOT, '.masar-session.enc');
+const sessionKey = () => crypto.scryptSync(need('FANAR_PASS'), 'masar-session-v1', 32);
+
+async function loadSession() {
+  try {
+    const box = JSON.parse(await fs.readFile(SESSION_FILE, 'utf8'));
+    const d = crypto.createDecipheriv('aes-256-gcm', sessionKey(), Buffer.from(box.iv, 'base64'));
+    d.setAuthTag(Buffer.from(box.tag, 'base64'));
+    return JSON.parse(Buffer.concat([d.update(Buffer.from(box.data, 'base64')), d.final()]).toString('utf8'));
+  } catch {
+    return null;
+  }
+}
+
+async function saveSession(context) {
+  const iv = crypto.randomBytes(12);
+  const c = crypto.createCipheriv('aes-256-gcm', sessionKey(), iv);
+  const data = Buffer.concat([c.update(JSON.stringify(await context.storageState()), 'utf8'), c.final()]);
+  await fs.writeFile(SESSION_FILE, JSON.stringify({ iv: iv.toString('base64'), tag: c.getAuthTag().toString('base64'), data: data.toString('base64') }));
+}
+
+async function onLoginPage(page) {
+  if (/\/login\b/i.test(new URL(page.url()).pathname)) return true;
+  return (await page.locator(config.login.password).filter({ visible: true }).count()) > 0;
+}
+
 // ---------- التشغيل ----------
 const browser = await chromium.launch({ headless: true });
 try {
-  const context = await browser.newContext({ locale: 'ar-SA', timezoneId: 'Asia/Riyadh', viewport: { width: 1400, height: 900 } });
+  const saved = await loadSession();
+  const context = await browser.newContext({
+    locale: 'ar-SA', timezoneId: 'Asia/Riyadh', viewport: { width: 1400, height: 900 }, ...(saved ? { storageState: saved } : {}),
+  });
   const page = await context.newPage();
-  if (!process.env.MASAR_SKIP_LOGIN) await login(page);
+  let needLogin = !process.env.MASAR_SKIP_LOGIN;
+  if (saved && needLogin) {
+    await page.goto(config.ordersUrl, { waitUntil: 'domcontentloaded' });
+    await page.waitForLoadState('networkidle').catch(() => {});
+    await sleep(2000);
+    needLogin = await onLoginPage(page);
+    log(needLogin ? 'الجلسة المحفوظة انتهت، ندخل من جديد.' : 'دخلنا بالجلسة المحفوظة بدون رمز تحقق.');
+  }
+  if (needLogin) await login(page);
+  await saveSession(context);
   let orders = await readAllOrders(page);
   if (!orders.length) throw new Error('ما انقرأ أي أمر صرف — ما راح نحدّث الصفحة عشان ما تنمسح البيانات القديمة.');
   const only = config.onlyMaintenance;

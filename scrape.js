@@ -223,12 +223,20 @@ async function dumpFirstDetails(page) {
   detailsDumped = true;
   const btn = page.getByText(O.showDetailsText, { exact: false }).first();
   if (!(await btn.count())) return;
-  await btn.click().catch(() => {});
+  await clickToggle(btn).catch(() => {});
   await sleep(2500);
   await dumpStructure(page, '3-details');
   const hide = page.getByText(O.hideDetailsText, { exact: false }).first();
-  if (await hide.count()) await hide.click().catch(() => {});
+  if (await hide.count()) await clickToggle(hide).catch(() => {});
   await sleep(500);
+}
+
+// "عرض التفاصيل" في فنار نص ما ينضغط؛ اللي ينضغط هو رأس البطاقة (role=button). نضغطه، وإذا ما فيه نضغط النص بالقوة
+async function clickToggle(t) {
+  await t.scrollIntoViewIfNeeded({ timeout: 5000 }).catch(() => {});
+  const header = t.locator('xpath=ancestor::*[@role="button" or self::button][1]');
+  if (await header.count()) return header.click({ timeout: 5000 });
+  return t.click({ timeout: 5000, force: true });
 }
 
 // يفتح تفاصيل كل بطاقة ويقرأ الخانات حسب عناوينها (مو حسب تصميم الصفحة)
@@ -243,8 +251,11 @@ async function readCards(page, deadline) {
   let timedOut = false;
 
   const inCard = (el, { o, labels, mode }) => {
+    // البطاقة = أكبر عنصر فوق الزر ما فيه إلا زر تفاصيل واحد (عشان نشمل التفاصيل اللي تنفتح تحت رأس البطاقة)
+    const toggleCount = (x) => ((x.innerText || '').split(o.showDetailsText).length - 1)
+      + ((x.innerText || '').split(o.hideDetailsText).length - 1);
     let card = el;
-    while (card.parentElement && !(card.innerText || '').includes(o.cardMarker)) card = card.parentElement;
+    while (card.parentElement && card.parentElement !== document.body && toggleCount(card.parentElement) <= 1) card = card.parentElement;
     if (mode === 'has') return (card.innerText || '').includes(o.detailsMarker);
     const esc2 = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const els = [card, ...card.querySelectorAll('*')];
@@ -281,9 +292,8 @@ async function readCards(page, deadline) {
     const t = toggles.nth(i);
     try {
       let open = await t.evaluate(inCard, args('has'));
-      if (!open) {
-        await t.scrollIntoViewIfNeeded({ timeout: 5000 });
-        await t.click({ timeout: 5000 });
+      for (let attempt = 0; attempt < 2 && !open; attempt++) {
+        if ((await t.innerText()).includes(O.showDetailsText)) await clickToggle(t);
         for (let w = 0; w < 40 && !open; w++) {
           await sleep(150);
           open = await t.evaluate(inCard, args('has'));
@@ -291,7 +301,7 @@ async function readCards(page, deadline) {
       }
       if (!open) failed++;
       results.push(await t.evaluate(inCard, args('read')));
-      if (open && (await t.innerText()).includes(O.hideDetailsText)) await t.click({ timeout: 3000 }).catch(() => {});
+      if (open && (await t.innerText()).includes(O.hideDetailsText)) await clickToggle(t).catch(() => {});
     } catch {
       failed++;
     }

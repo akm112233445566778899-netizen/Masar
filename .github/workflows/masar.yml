@@ -28,6 +28,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: ترتيب الملفات
+        run: |
+          mkdir -p scraper site
+          if [ -f scrape.js ]; then mv scrape.js scraper/; fi
+          if [ -f core.js ]; then mv core.js site/; fi
+          if [ -f index.html ]; then mv index.html site/; fi
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22

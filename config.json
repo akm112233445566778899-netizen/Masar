@@ -1,0 +1,42 @@
+{
+  "loginUrl": "https://ضع-رابط-صفحة-دخول-فنار-هنا",
+  "ordersUrl": "https://ضع-رابط-صفحة-أوامر-الصرف-هنا",
+
+  "login": {
+    "username": "input[type=email], input[name*=user i], input[name*=email i], input[id*=user i], input[type=text]",
+    "password": "input[type=password]",
+    "submit": "button[type=submit], input[type=submit]",
+    "loggedInSelector": ""
+  },
+
+  "otp": {
+    "input": "input[autocomplete=one-time-code], input[name*=otp i], input[name*=code i], input[id*=otp i]",
+    "submit": "button[type=submit], input[type=submit]",
+    "waitMinutes": 8
+  },
+
+  "orders": {
+    "table": "table",
+    "headerCells": "thead th",
+    "rows": "tbody tr",
+    "cells": "td",
+    "next": "",
+    "maxPages": 50,
+    "waitAfterNextMs": 2000
+  },
+
+  "onlyCategory": {
+    "column": "category",
+    "contains": ["صيانة", "الصيانة"]
+  },
+
+  "columns": {
+    "category": ["البند", "بند الصرف", "اسم البند", "نوع الصرف", "التصنيف", "الباب"],
+    "company": ["اسم الشركة", "اسم المورد", "المورد", "اسم الجهة", "المستفيد"],
+    "invoice": ["رقم الفاتورة", "الفاتورة"],
+    "amount": ["المبلغ", "القيمة", "الإجمالي", "مبلغ الفاتورة"],
+    "status": ["الحالة", "حالة الطلب", "حالة أمر الصرف"],
+    "date": ["تاريخ آخر تحديث", "تاريخ التحديث", "التاريخ"],
+    "orderNo": ["رقم أمر الصرف", "رقم الأمر", "رقم الطلب"]
+  }
+}

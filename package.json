@@ -1,0 +1,13 @@
+{
+  "name": "masar",
+  "version": "1.0.0",
+  "private": true,
+  "description": "مِسَار — متابعة أوامر الصرف في منصة فنار",
+  "type": "module",
+  "scripts": {
+    "scrape": "node scraper/scrape.js"
+  },
+  "dependencies": {
+    "playwright": "^1.48.0"
+  }
+}

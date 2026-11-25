@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>مِسَار | متابعة أوامر الصرف</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f4f1ea; --card: #fffdf8; --ink: #1d2a26; --muted: #6b766f; --line: #e2ddd1;
+    --brand: #0f5c4d; --brand-ink: #fff; --ok: #1f7a4d; --ok-bg: #e5f3ea;
+    --wait: #9a6a00; --wait-bg: #fbf1d9; --bad: #a93226; --bad-bg: #f8e3e0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
+    font-family: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+    display: grid; place-items: center; padding: 32px 16px;
+  }
+  main { width: 100%; max-width: 440px; }
+  header { text-align: center; margin-bottom: 28px; }
+  .mark {
+    width: 56px; height: 56px; margin: 0 auto 14px; border-radius: 16px; background: var(--brand);
+    display: grid; place-items: center;
+  }
+  h1 { margin: 0; font-size: 34px; letter-spacing: .5px; }
+  header p { margin: 6px 0 0; color: var(--muted); }
+  form, .result {
+    background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 24px;
+  }
+  label { display: block; font-weight: 500; margin: 0 0 6px; font-size: 15px; }
+  .field + .field { margin-top: 16px; }
+  input {
+    width: 100%; padding: 12px 14px; font: inherit; font-size: 16px; color: var(--ink);
+    background: #fff; border: 1px solid var(--line); border-radius: 12px; outline: none;
+  }
+  input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(15, 92, 77, .14); }
+  .hint { color: var(--muted); font-size: 13px; margin-top: 5px; }
+  button {
+    width: 100%; margin-top: 22px; padding: 13px; font: inherit; font-size: 17px; font-weight: 700;
+    background: var(--brand); color: var(--brand-ink); border: 0; border-radius: 12px; cursor: pointer;
+  }
+  button:disabled { opacity: .6; cursor: progress; }
+  .result { margin-top: 16px; display: none; }
+  .result.show { display: block; }
+  .status {
+    display: inline-block; padding: 6px 14px; border-radius: 999px; font-weight: 700; font-size: 17px;
+    background: var(--wait-bg); color: var(--wait);
+  }
+  .status.ok { background: var(--ok-bg); color: var(--ok); }
+  .status.bad { background: var(--bad-bg); color: var(--bad); }
+  dl { margin: 16px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; font-size: 15px; }
+  dt { color: var(--muted); }
+  dd { margin: 0; }
+  .msg { margin: 0; line-height: 1.7; }
+  .entry + .entry { border-top: 1px dashed var(--line); margin-top: 16px; padding-top: 16px; }
+  footer { text-align: center; color: var(--muted); font-size: 13px; margin-top: 22px; line-height: 1.8; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="mark" aria-hidden="true">
+      <svg width="30" height="30" viewBox="0 0 30 30" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round">
+        <path d="M5 22 C 11 22, 11 8, 17 8 S 25 15, 25 15"/><circle cx="5" cy="22" r="2.2" fill="#fff"/><circle cx="25" cy="15" r="2.2" fill="#fff"/>
+      </svg>
+    </div>
+    <h1>مِسَار</h1>
+    <p>تابع حالة أمر الصرف الخاص بفاتورتك</p>
+  </header>
+
+  <form id="f" autocomplete="off">
+    <div class="field">
+      <label for="company">اسم الشركة</label>
+      <input id="company" required placeholder="كما هو مسجّل في الفاتورة">
+    </div>
+    <div class="field">
+      <label for="invoice">رقم الفاتورة</label>
+      <input id="invoice" required inputmode="text" dir="ltr" style="text-align:right">
+    </div>
+    <div class="field">
+      <label for="amount">مبلغ الفاتورة</label>
+      <input id="amount" required inputmode="decimal" dir="ltr" style="text-align:right" placeholder="مثال: 15000">
+      <div class="hint">المبلغ الإجمالي بالريال كما في الفاتورة</div>
+    </div>
+    <button id="go" type="submit">استعلام</button>
+  </form>
+
+  <section class="result" id="result" aria-live="polite"></section>
+
+  <footer>
+    <div id="updated"></div>
+    <div>لا تظهر أي معلومة إلا عند تطابق الخانات الثلاث.</div>
+  </footer>
+</main>
+
+<script type="module">
+  import { deriveRecord, decryptJSON } from './core.js';
+
+  const $ = (id) => document.getElementById(id);
+  const fmt = new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Riyadh' });
+  let dataPromise = fetch('data.json', { cache: 'no-store' }).then((r) => r.json()).catch(() => null);
+
+  dataPromise.then((d) => {
+    if (d?.updatedAt) $('updated').textContent = `آخر تحديث للبيانات: ${fmt.format(new Date(d.updatedAt))}`;
+  });
+
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  function tone(status) {
+    if (/رفض|مرفوض|ملغ|إلغاء|الغاء|معاد|إعادة|مرتجع/.test(status)) return 'bad';
+    if (/تم الصرف|صرف|مدفوع|تم الدفع|مكتمل|منفذ|تم التحويل/.test(status)) return 'ok';
+    return '';
+  }
+  function show(html) { $('result').innerHTML = html; $('result').classList.add('show'); }
+
+  $('f').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = $('go');
+    btn.disabled = true; btn.textContent = 'جاري التحقق…';
+    try {
+      const data = await dataPromise;
+      if (!data?.salt || !data.records) { show('<p class="msg">الخدمة قيد التجهيز، حاول لاحقاً.</p>'); return; }
+      const d = await deriveRecord(data.salt, $('company').value, $('invoice').value, $('amount').value, data.iterations);
+      const boxes = d && data.records[d.id];
+      if (!boxes) {
+        show('<p class="msg">ما لقينا أمر صرف بهذي البيانات.<br>تأكد من كتابة اسم الشركة ورقم الفاتورة والمبلغ كما هي في الفاتورة بالضبط.</p>');
+        return;
+      }
+      const entries = await Promise.all(boxes.map((b) => decryptJSON(d.key, b)));
+      show(entries.map((x) => `
+        <div class="entry">
+          <span class="status ${tone(x.status)}">${esc(x.status || 'غير محددة')}</span>
+          <dl>
+            ${x.orderNo ? `<dt>رقم أمر الصرف</dt><dd>${esc(x.orderNo)}</dd>` : ''}
+            ${x.date ? `<dt>التاريخ</dt><dd>${esc(x.date)}</dd>` : ''}
+          </dl>
+        </div>`).join(''));
+    } catch {
+      show('<p class="msg">صار خطأ أثناء الاستعلام، حاول مرة ثانية.</p>');
+    } finally {
+      btn.disabled = false; btn.textContent = 'استعلام';
+    }
+  });
+</script>
+</body>
+</html>
